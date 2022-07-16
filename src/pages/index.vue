@@ -1,60 +1,110 @@
 <template>
   <v-row>
-    <v-col cols="12" sm="6">
+    <v-col cols="12">
+      <v-dialog :value="isExporting" max-width="450px">
+        <v-sheet
+          height="200"
+          class="d-flex align-center justify-center">
+            <v-progress-circular
+              indeterminate
+              color="primary"
+            ></v-progress-circular>
+        </v-sheet>
+      </v-dialog>
+      <div class="d-flex" style="gap: 8px">
+        <div class="d-flex flex-column">
+          <DragAndDropFile :multiple="true" :ruta="'bills'" :types="'text/xml'" @uploadedItem="uploadedItem($event)"/>
+        </div>
+        <div class="d-flex flex-column">
+          <v-btn color="success"
+            @click="exportTableToExcel()">
+            <v-icon
+              left
+            >
+              mdi-microsoft-excel
+            </v-icon>
+            Export to Excel
+          </v-btn>
+        </div>
+      </div>
     </v-col>
-    <v-col cols="12" sm="6">
-      <Table :items="items" :headers="headers" :search="search" @changeSearch="changeSearch($event)"></Table>
+    <v-col cols="12">
+      <Table :items="items" :headers="headers" :search="search" @changeSearch="changeSearch($event)" @getFileByUrl="getFileByUrl($event)"></Table>
     </v-col>
   </v-row>
 </template>
 
 <script>
-import { firestore, doc } from '~/plugins/firebase.js'
+import * as XLSX from 'xlsx/xlsx.mjs';
+import { firestore } from '~/plugins/firebase.js'
 import Table from '@/components/Table.vue'
-import { addDoc, collection, getDoc, getDocs, limit, onSnapshot, query } from '@firebase/firestore'
+import { addDoc, collection, onSnapshot, query } from '@firebase/firestore'
+import DragAndDropFile from '../components/DragAndDropFile.vue'
 export default {
   name: 'IndexPage',
   components: {
-    Table
-  },
+    Table,
+    DragAndDropFile
+},
   data () {
     return {
       items: [],
       headers: [
         {
-          text: 'Code',
+          text: 'Serial Number',
           sortable: true,
-          value: 'id',
+          value: 'serialNumber',
         },
         {
-          text: 'Name',
+          text: 'Issue Date',
           sortable: true,
-          value: 'name',
+          value: 'issueDate',
         },
         {
-          text: 'Salary',
+          text: 'Expiration Date',
           sortable: true,
-          value: 'salary',
+          value: 'expirationDate',
+        },
+        {
+          text: 'IGV',
+          sortable: true,
+          value: 'igv',
+        },
+        {
+          text: 'Tax Base',
+          sortable: true,
+          value: 'taxBase',
+        },
+        {
+          text: 'Total',
+          sortable: true,
+          value: 'total',
+        },
+        {
+          text: 'File URL',
+          sortable: true,
+          value: 'fileUrl',
         },
       ],
       search: '',
-      numberEmployees: 0,
+      numberBills: 0,
       rules: {
-        numberEmployees: [
-          v => !!v || 'Number of Employees is required',
+        numberBills: [
+          v => !!v || 'Number of Bills is required',
           v => v > 0 || 'Dont must be zero'
         ]
       },
+      isExporting: false,
       validForm: false
     }
   },
   computed: {
-    numberEmployeesComputed: {
+    numberBillsComputed: {
       get(){
-        return this.numberEmployees
+        return this.numberBills
       },
       set(value){
-        this.numberEmployees = Number(value)
+        this.numberBills = Number(value)
       }
     }
   },
@@ -62,11 +112,11 @@ export default {
     changeSearch($event){
       this.search = $event
     },
-    async getEmployees(){
-      const employeesQuery = query(
-        collection(firestore, 'employees')
+    async getBills(){
+      const billsQuery = query(
+        collection(firestore, 'bills')
       )
-      onSnapshot(employeesQuery, (querySnapShot) => {
+      onSnapshot(billsQuery, (querySnapShot) => {
         this.items = querySnapShot.docs.map((e) => {
           return {
             ...e.data(),
@@ -75,24 +125,33 @@ export default {
         })
       })
     },
-    async clickButton(){
-      for (let i = 0; i < this.numberEmployees; i++) {
-        await this.createEmployees()
-      }
+    async createBills(bill, fileUrl, fileName){
+      const billsCollection = collection(firestore, 'bills')
+      const newDoc = await addDoc(billsCollection, {
+        serialNumber: bill.serialNumber,
+        issueDate: bill.issueDate,
+        expirationDate: bill.expirationDate,
+        igv: bill.igv,
+        taxBase: bill.taxBase,
+        total: bill.total,
+        fileName,
+        fileUrl
+      })
     },
-    async createEmployees(){
-      let res = await this.$axios.$get('/api/')
-      if(res.name){
-        const employeesCollection = collection(firestore, 'employees')
-        const newDoc = await addDoc(employeesCollection, {
-          name: res.name,
-          salary: Math.floor(Math.random() * 10000)
-        })
-      } 
+    async uploadedItem($event){
+      await this.createBills($event.result, $event.downloadUrl, $event.file.name)
+    },
+    async exportTableToExcel(){
+      this.isExporting = true
+      const worksheet = await XLSX.utils.json_to_sheet(this.items);
+      const workbook = await XLSX.utils.book_new();
+      await XLSX.utils.book_append_sheet(workbook, worksheet, "Bills");
+      await XLSX.writeFile(workbook, "Bills.xlsx");
+      this.isExporting = false
     }
   },
   created(){
-    this.getEmployees()
+    this.getBills()
   }
 }
 </script>

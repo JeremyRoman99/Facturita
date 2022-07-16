@@ -52,14 +52,14 @@ export default {
       items: [
         {
           icon: 'mdi-apps',
-          title: 'Employees',
+          title: 'Bills',
           to: '/'
         }
       ],
       miniVariant: false,
       right: true,
       rightDrawer: false,
-      title: 'Qualified Practice 12 - Computer Architecture'
+      title: 'List Bills'
     }
   }
 }
